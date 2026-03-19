@@ -1,0 +1,14 @@
+﻿/.vs
+/.idea
+/bin-int
+/bin
+
+
+
+*.user
+*.sln
+*.slnx
+*.vcxproj
+*.csproj
+*.vcxproj.filters
+*package-lock.json

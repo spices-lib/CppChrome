@@ -13,6 +13,8 @@ outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
 include "lib.lua"
 
 group "Dependencies"
+include "vendor/Glad"
+include "vendor/GLFW"
 group ""
 
 project "CppChrome"
@@ -40,11 +42,15 @@ project "CppChrome"
 	includedirs
 	{
 		"src",
+		"%{IncludeDir.Glad}",
+		"%{IncludeDir.GLFW}",
 		"%{IncludeDir.cef}",
 	}
 
 	links
 	{
+		"GLFW",
+		"Glad",
 	}
 
 	filter "system:windows"
