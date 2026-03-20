@@ -1,5 +1,7 @@
 #include "WebRenderer.h"
 #include "ScopeTimer.h"
+#include "D3D11Texture.h"
+#include "NvInteropTexture.h"
 
 #include <glad/glad.h>
 #include <iostream>
@@ -78,6 +80,13 @@ public:
         CEF_REQUIRE_UI_THREAD();
         rect.Set(0, 0, 3840, 2160);
         std::cout << "[RenderHandler] GetViewRect called: 3840*2160" << std::endl;
+
+        static std::once_flag flag;
+
+        std::call_once(flag, [&]() {
+
+            m_D3D11Texture.Init();
+        });
     }
 
     bool GetScreenInfo(scoped_refptr<CefBrowser> browser, CefScreenInfo& screen_info) override
@@ -99,34 +108,45 @@ public:
         int height) override {
         CEF_REQUIRE_UI_THREAD();
 
-        m_SharedTexture = false;
-        
+        m_Width = width;
+
+        m_Height = height;
+
         m_Data = std::make_shared<std::vector<uint8_t>>(width * height * 4);
         
         memcpy(m_Data->data(), buffer, width * height * 4);
-        
-        m_Width = width;
-        m_Height = height;
         
         m_Condition.notify_all();
     }
 
     // 硬件加速渲染回调 - 共享纹理
+    // 1.Windows下的纹理是D3D11纹理
+    // 2.Angle后端支持零成本纹理转换，但是需要 OpenGL ES 环境
     void OnAcceleratedPaint(CefRefPtr<CefBrowser> browser,
         PaintElementType type,
         const RectList& dirtyRects,
         const CefAcceleratedPaintInfo& info) override {
         CEF_REQUIRE_UI_THREAD();
-
-        m_SharedTexture = true;
         
+        m_Width = info.extra.content_rect.width;
 
+        m_Height = info.extra.content_rect.height;
+
+        HANDLE sharedHandle = info.shared_texture_handle;
+
+        if constexpr (0)
+        {
+            m_Data = m_D3D11Texture.ReadTexture(sharedHandle, m_Width, m_Height);
+        }
+        else
+        {
+            m_NvInteropTexture.ReadTexture(sharedHandle);
+        }
 
         m_Condition.notify_all();
     }
 
     IMPLEMENT_REFCOUNTING(RenderHandler);
-
 
 public:
 
@@ -140,25 +160,37 @@ public:
             m_Condition.wait(lock);
         }
 
-        if (!m_SharedTexture)
-        {
-            SCOPE_TIME_COUNTER("WaitRender::Upload Data")
+        static std::once_flag flag;
 
-            static std::once_flag flag;
-            std::call_once(flag, [&]() {
+        std::call_once(flag, [&]() {
 
-                glGenTextures(1, &m_TextureID);
+            glGenTextures(1, &m_TextureID);
 
-                glBindTexture(GL_TEXTURE_2D, m_TextureID);
+            glBindTexture(GL_TEXTURE_2D, m_TextureID);
             
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            });
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_Width, m_Height, 0,
+                GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+
+            /*glGenBuffers(1, &m_PBO);
+
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_PBO);
+
+            glBufferData(GL_PIXEL_UNPACK_BUFFER, m_Data->size(), nullptr, GL_STREAM_DRAW);*/
+
+            m_NvInteropTexture.Init();
+        });
+
+        // Method1
+        /*{
+            SCOPE_TIME_COUNTER("WaitRender::Upload Data")
 
             glBindTexture(GL_TEXTURE_2D, m_TextureID);
 
@@ -166,12 +198,37 @@ public:
                         GL_BGRA, GL_UNSIGNED_BYTE, m_Data->data());
                 
             glBindTexture(GL_TEXTURE_2D, 0);
-        }
-        else
-        {
+        }*/
+        /*{
+            SCOPE_TIME_COUNTER("WaitRender::Upload Data")
 
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_PBO);
+
+            void* pboMemory = glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+            if (!pboMemory) {
+
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+                return m_TextureID;
+            }
+
+            memcpy(pboMemory, m_Data->data(), m_Data->size());
+
+            glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+
+            glBindTexture(GL_TEXTURE_2D, m_TextureID);
+
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_Width, m_Height,
+                GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+
+            glBindTexture(GL_TEXTURE_2D, 0);
+
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        }*/
+        {
+            m_NvInteropTexture.ShareTexture(m_TextureID);
         }
-        
+
         return m_TextureID; 
     }
 
@@ -180,9 +237,11 @@ private:
     std::mutex m_Mutex;
     std::condition_variable m_Condition;
     uint32_t m_TextureID;
-    bool m_SharedTexture = false;
+    uint32_t m_PBO;
     uint32_t m_Width;
     uint32_t m_Height;
+    D3D11Texture m_D3D11Texture;
+    NvInteropTexture m_NvInteropTexture;
     std::shared_ptr<std::vector<uint8_t>> m_Data;
 };
 
@@ -228,6 +287,17 @@ public:
         command_line->AppendSwitch("enable-zero-copy");
         command_line->AppendSwitch("shared-texture-enabled");
         command_line->AppendSwitch("multi-threaded-message-loop");
+
+        // 设置 d3d11 angle
+        command_line->AppendSwitch("use-angle");
+        command_line->AppendSwitchWithValue("use-angle", "d3d11");
+
+        command_line->AppendSwitch("disable-software-rasterizer");
+
+        command_line->AppendSwitch("enable-gpu");                 // 启用 GPU
+        command_line->AppendSwitch("enable-gpu-compositing");     // 强制 GPU 合成
+        command_line->AppendSwitch("enable-accelerated-2d-canvas");
+        command_line->AppendSwitch("enable-accelerated-video-decode");
     }
 
     CefRefPtr<CefBrowserProcessHandler> GetBrowserProcessHandler() override {
@@ -241,7 +311,7 @@ public:
     IMPLEMENT_REFCOUNTING(App);
 };
 
-bool WebRenderer::Init()
+bool WebRenderer::Init(bool shaderTexture)
 {
     CefMainArgs mainArgs;
 
@@ -277,7 +347,7 @@ bool WebRenderer::Init()
 
         CefWindowInfo                               windowInfo{};
         windowInfo.SetAsWindowless(NULL);
-        windowInfo.shared_texture_enabled         = m_SharedTexture;
+        windowInfo.shared_texture_enabled         = shaderTexture;
         windowInfo.external_begin_frame_enabled   = true;
 
         // 浏览器设置

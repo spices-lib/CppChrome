@@ -45,6 +45,7 @@ project "CppChrome"
 		"%{IncludeDir.Glad}",
 		"%{IncludeDir.GLFW}",
 		"%{IncludeDir.cef}",
+		"%{IncludeDir.GL}",
 	}
 
 	links
@@ -65,6 +66,7 @@ project "CppChrome"
 
 		links
 		{
+			"d3d11.lib"
 		}
 
 		debugenvs 

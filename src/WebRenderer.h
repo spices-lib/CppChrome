@@ -11,7 +11,7 @@ public:
     WebRenderer() = default;
     virtual ~WebRenderer();
 
-    bool Init();
+    bool Init(bool shaderTexture);
 
     uint32_t Render();
 
@@ -19,7 +19,6 @@ private:
 
     std::thread m_WebThread;
     std::shared_ptr<class Client> m_Client = nullptr;
-    bool m_SharedTexture = false;
     std::mutex m_Mutex;
     std::condition_variable m_Condition;
 };

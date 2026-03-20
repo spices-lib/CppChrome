@@ -2,6 +2,7 @@ IncludeDir                                = {}
 IncludeDir["cef"]                         = "%{wks.location}/vendor/cef"
 IncludeDir["Glad"]                        = "%{wks.location}/vendor/Glad/include"
 IncludeDir["GLFW"]                        = "%{wks.location}/vendor/GLFW/include"
+IncludeDir["GL"]                          = "%{wks.location}/vendor/GL"
 
 LibraryDir                                = {}
 LibraryDir["cef_debug"]                   = "%{IncludeDir.cef}/Debug"
