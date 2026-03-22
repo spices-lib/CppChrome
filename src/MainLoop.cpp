@@ -10,7 +10,7 @@ int main() {
 	// Cef Must be executed first.
 	// 1.sub progress entry here and return.
 	// 2.wgl needs glfw init.
-	if (!webRenderer.Init(true)) {
+	if (!webRenderer.Init(false)) {
 		return 1;
 	}
 
