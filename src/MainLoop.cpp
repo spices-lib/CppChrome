@@ -1,24 +1,35 @@
-#include "WebRenderer.h"
+#include "WebClient.h"
 #include "Window.h"
+#include "WebApp.h"
+#include <vector>
 
 int main() {
 
-	Window window;
+	WebApp app;
 
-	WebRenderer webRenderer;
-	
-	// Cef Must be executed first.
-	// 1.sub progress entry here and return.
-	// 2.wgl needs glfw init.
-	if (!webRenderer.Init(false)) {
-		return 1;
+	if (!app.Init())
+	{
+		return 0;
 	}
 
+	Window window;
+
 	window.Init();
+
+	std::vector<std::shared_ptr<WebClient>> clients;
+
+	for (int i = 0; i < 5; ++i)
+	{
+		auto client = std::make_shared<WebClient>();
+
+		client->Init(&app, true);
+
+		clients.emplace_back(client);
+	}
 
 	CppRenderer cppRenderer;
 
 	cppRenderer.Init();
 
-	window.EventLoop(webRenderer, cppRenderer);
+	window.EventLoop(*clients[0], cppRenderer);
 }

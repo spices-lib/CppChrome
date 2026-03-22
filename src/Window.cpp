@@ -31,17 +31,15 @@ void Window::Init()
     m_Windows = window;
 }
 
-void Window::EventLoop(WebRenderer& webRenderer, CppRenderer& cppRenderer)
+void Window::EventLoop(WebClient& webClient, CppRenderer& cppRenderer)
 {
 	while (!glfwWindowShouldClose((GLFWwindow*)m_Windows))
 	{
         glfwPollEvents();
 	    
-        auto texture = webRenderer.Render();
-
-        cppRenderer.Render(texture);
-
         std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        cppRenderer.Render(webClient.Render());
 
         glfwSwapBuffers((GLFWwindow*)m_Windows);
 	}

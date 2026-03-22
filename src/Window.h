@@ -1,6 +1,6 @@
 #pragma once
 #include "CppRenderer.h"
-#include "WebRenderer.h"
+#include "WebClient.h"
 
 class Window
 {
@@ -11,7 +11,7 @@ public:
 
 	void Init();
 
-	void EventLoop(WebRenderer& webRenderer, CppRenderer& cppRenderer);
+	void EventLoop(WebClient& webClient, CppRenderer& cppRenderer);
 
 private:
 
