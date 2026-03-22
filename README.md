@@ -22,6 +22,8 @@ https://github.com/jtorjo/cef-spout?tab=readme-ov-file
 验证方案如下：
     1.D3D11 Texture -> Staging Texture -> CPU -> Staging Buffer -> OpenGL Texture 耗时与 OnPaint 基本一致
     2.WGL_NV_DX_interop2 Cef创建的资源带有GDI标志，无法共享给OpenGL，但是性能消耗只有方案一的三分之一左右
+    3.使用 EGL_ANGLE_d3d_share_handle 拓展，利用浏览器的Angle渲染后端，将 D3D11纹理转换成 OpenGL纹理，但是硬性需求 OpenGL ES环境
+    4.5. D3D11 Texture 复制 -> D3D11 Texture without  GDI ，使用 WGL_NV_DX_interop2 共享 耗时基本是 OnPaint 一半
 
 Build:
 1. 下载cef138版本到 vendor/cef

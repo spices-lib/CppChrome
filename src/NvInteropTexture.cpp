@@ -87,14 +87,30 @@ void NvInteropTexture::ReadTexture(HANDLE handle) {
     device->Release();
     if (FAILED(hr)) return;
 
-    // 2. 如果已有注册对象，先注销
-    if (m_SharedTexture) {
-        //m_SharedTexture->Release();
-        //m_SharedTexture = nullptr;
-    }
+    // 2. 获取源纹理描述
+    D3D11_TEXTURE2D_DESC srcDesc;
+    texture->GetDesc(&srcDesc);
+
+    // 3. 复制描述，禁用GDI
+    srcDesc.MiscFlags  = D3D11_RESOURCE_MISC_SHARED;
+    srcDesc.BindFlags |= D3D11_BIND_SHADER_RESOURCE;
+
+    // 4. 创建目标纹理
+    ID3D11Texture2D* destTexture = nullptr;
+    hr = m_Device->CreateTexture2D(&srcDesc, nullptr, &destTexture);
+    if (FAILED(hr)) return;
+
+    m_Context->CopyResource(destTexture, texture);
 
     // 3. 保存共享纹理引用（用于后续清理）
-    m_SharedTexture = texture;
+    if (m_SharedTexture)
+    {
+        m_SharedTexture->Release();
+        m_SharedTexture = nullptr;
+    }
+
+    m_SharedTexture = destTexture;
+    texture->Release();
 }
 
 void NvInteropTexture::ShareTexture(uint32_t handle)
@@ -105,23 +121,16 @@ void NvInteropTexture::ShareTexture(uint32_t handle)
     D3D11_TEXTURE2D_DESC sharedDesc;
     m_SharedTexture->GetDesc(&sharedDesc);
 
-    bool hasShared = (sharedDesc.MiscFlags & D3D11_RESOURCE_MISC_SHARED) != 0;
-    bool hasSharedNT = (sharedDesc.MiscFlags & D3D11_RESOURCE_MISC_SHARED_NTHANDLE) != 0;
-
     if (m_InteropObject) {
+
+        wglDXUnlockObjectsNV(m_InteropDevice, 1, &m_InteropObject);
+
         wglDXUnregisterObjectNV(m_InteropDevice, m_InteropObject);
         m_InteropObject = nullptr;
+
     }
 
     glBindTexture(GL_TEXTURE_2D, handle);
-
-    GLenum glErr = glGetError();
-
-    BOOL result = wglDXSetResourceShareHandleNV(m_SharedTexture, nullptr);
-    if (!result) {
-        DWORD err = GetLastError();
-        printf("wglDXSetResourceShareHandleNV failed: %lu (0x%X)\n", err, err);
-    }
 
     // 2. 将 D3D 纹理注册到 OpenGL
     // 注意：注册时 GL 纹理必须已经存在（已创建）
@@ -138,12 +147,12 @@ void NvInteropTexture::ShareTexture(uint32_t handle)
         DWORD lastError = GetLastError();
         printf("  Last error: %lu\n", lastError);
 
-        glErr = glGetError();
-        if (glErr != GL_NO_ERROR) {
-            printf("  OpenGL error: 0x%X\n", glErr);
-        }
+        return;
+    }
 
-        m_SharedTexture->Release();
+    BOOL lockResult = wglDXLockObjectsNV(m_InteropDevice, 1, &m_InteropObject);
+    if (!lockResult) {
+        printf("wglDXLockObjectsNV failed\n");
         return;
     }
 }
