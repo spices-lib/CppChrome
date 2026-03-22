@@ -3,7 +3,12 @@
 /bin-int
 /bin
 
+/vendor/Glad/bin
+/vendor/Glad/bin-int
+/vendor/Glad/*.vcxproj
+/vendor/Glad/*.vcxproj.filters
 
+/vendor/cef
 
 *.user
 *.sln

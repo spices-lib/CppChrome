@@ -183,11 +183,14 @@ public:
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_Width, m_Height, 0,
                 GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
 
-            glGenBuffers(1, &m_PBO);
+            if (!m_SharedTexture)
+            {
+                glGenBuffers(1, &m_PBO);
 
-            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_PBO);
+                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_PBO);
 
-            glBufferData(GL_PIXEL_UNPACK_BUFFER, m_Data->size(), nullptr, GL_STREAM_DRAW);
+                glBufferData(GL_PIXEL_UNPACK_BUFFER, m_Data->size(), nullptr, GL_STREAM_DRAW);
+            }
 
             m_NvInteropTexture.Init();
         });
